@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,19 +10,73 @@ import { useToast } from '@/hooks/use-toast';
 
 const Index = () => {
   const [activeTab, setActiveTab] = useState('home');
-  const [balance, setBalance] = useState(10000);
-  const [stakedAmount, setStakedAmount] = useState(5000);
+  const [isWalletConnected, setIsWalletConnected] = useState(false);
+  const [walletAddress, setWalletAddress] = useState('');
+  const [balance, setBalance] = useState(0);
+  const [stakedAmount, setStakedAmount] = useState(0);
   const [stakeInput, setStakeInput] = useState('');
   const [referralCode] = useState('JBL-' + Math.random().toString(36).substr(2, 6).toUpperCase());
-  const [referrals, setReferrals] = useState(3);
+  const [referrals, setReferrals] = useState(0);
   const { toast } = useToast();
 
   const totalValue = balance + stakedAmount;
   const stakingAPY = 12;
   const commission = 0.5;
-  const estimatedReward = (stakedAmount * stakingAPY / 100 / 12).toFixed(2);
+  const estimatedReward = stakedAmount > 0 ? (stakedAmount * stakingAPY / 100 / 12).toFixed(2) : '0.00';
+
+  useEffect(() => {
+    if (window.Telegram?.WebApp) {
+      const tg = window.Telegram.WebApp;
+      tg.ready();
+      tg.expand();
+      tg.setHeaderColor('#1A1F2C');
+      tg.setBackgroundColor('#1A1F2C');
+    }
+  }, []);
+
+  const connectWallet = () => {
+    const mockAddress = 'UQC' + Math.random().toString(36).substr(2, 42).toUpperCase();
+    setWalletAddress(mockAddress);
+    setIsWalletConnected(true);
+    setBalance(0);
+    toast({
+      title: "TON Кошелек подключен! 💎",
+      description: `${mockAddress.substring(0, 8)}...${mockAddress.slice(-6)}`,
+    });
+  };
+
+  const disconnectWallet = () => {
+    setIsWalletConnected(false);
+    setWalletAddress('');
+    setBalance(0);
+    setStakedAmount(0);
+    toast({
+      title: "Кошелек отключен",
+      description: "До новых встреч!",
+    });
+  };
+
+  const getReferralLink = () => {
+    return `https://t.me/jbl_staking_bot?start=${referralCode}`;
+  };
+
+  const shareReferral = () => {
+    const link = getReferralLink();
+    const text = `Присоединяйся к JBL Staking! 🚀\nПолучи 12% годовых в TON\nМой код: ${referralCode}`;
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`;
+    window.open(shareUrl, '_blank');
+  };
 
   const handleStake = () => {
+    if (!isWalletConnected) {
+      toast({
+        title: "Подключите кошелек",
+        description: "Сначала подключите TON кошелек",
+        variant: "destructive"
+      });
+      return;
+    }
+
     const amount = parseFloat(stakeInput);
     if (amount > 0 && amount <= balance) {
       setBalance(balance - amount);
@@ -30,12 +84,12 @@ const Index = () => {
       setStakeInput('');
       toast({
         title: "Стейкинг успешен! 🚀",
-        description: `${amount} JBL застейканы на 1 месяц`,
+        description: `${amount} TON застейканы на 30 дней`,
       });
     } else {
       toast({
         title: "Ошибка",
-        description: "Недостаточно средств",
+        description: balance === 0 ? "Пополните баланс" : "Недостаточно средств",
         variant: "destructive"
       });
     }
@@ -49,379 +103,482 @@ const Index = () => {
       setStakeInput('');
       toast({
         title: "Вывод успешен! ✅",
-        description: `${amount} JBL выведены в кошелек`,
+        description: `${amount} TON выведены в кошелек`,
+      });
+    } else {
+      toast({
+        title: "Ошибка",
+        description: "Недостаточно средств в стейкинге",
+        variant: "destructive"
       });
     }
   };
 
   const copyReferralCode = () => {
-    navigator.clipboard.writeText(referralCode);
+    const link = getReferralLink();
+    navigator.clipboard.writeText(link);
     toast({
       title: "Скопировано! 📋",
-      description: "Реферальный код скопирован",
+      description: "Реферальная ссылка скопирована",
     });
+  };
+
+  const handleDeposit = () => {
+    const amount = parseFloat(stakeInput);
+    if (amount > 0) {
+      setBalance(balance + amount);
+      setStakeInput('');
+      toast({
+        title: "Пополнение успешно! 💰",
+        description: `+${amount} TON на баланс`,
+      });
+    }
   };
 
   return (
     <div className="min-h-screen blockchain-bg relative overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-b from-primary/10 via-transparent to-secondary/10 pointer-events-none" />
       
-      <div className="container mx-auto px-4 py-8 relative z-10">
-        <header className="mb-8 text-center">
-          <h1 className="text-5xl font-bold mb-2 text-glow animate-float">JBL STAKING</h1>
-          <p className="text-muted-foreground">Децентрализованная платформа стейкинга</p>
+      <div className="container mx-auto px-4 py-6 relative z-10 max-w-6xl">
+        <header className="mb-6 text-center">
+          <div className="flex items-center justify-center mb-4 animate-float">
+            <div className="h-16 w-16 rounded-full bg-gradient-to-r from-[#0098EA] to-primary flex items-center justify-center mr-3">
+              <Icon name="Gem" className="h-8 w-8" />
+            </div>
+            <h1 className="text-4xl md:text-5xl font-bold text-glow">JBL STAKING</h1>
+          </div>
+          <p className="text-muted-foreground mb-4">Стейкинг TON с доходностью 12% годовых</p>
+          
+          {!isWalletConnected ? (
+            <Button 
+              onClick={connectWallet} 
+              size="lg"
+              className="bg-gradient-to-r from-[#0098EA] to-primary hover:opacity-90 animate-pulse-glow"
+            >
+              <Icon name="Wallet" className="mr-2 h-5 w-5" />
+              Подключить TON Кошелек
+            </Button>
+          ) : (
+            <div className="flex flex-col items-center space-y-2">
+              <Badge className="bg-green-500/20 text-green-400 px-4 py-2">
+                <Icon name="CheckCircle" className="mr-2 h-4 w-4" />
+                {walletAddress.substring(0, 8)}...{walletAddress.slice(-6)}
+              </Badge>
+              <Button 
+                onClick={disconnectWallet} 
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-foreground"
+              >
+                Отключить
+              </Button>
+            </div>
+          )}
         </header>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full max-w-6xl mx-auto">
-          <TabsList className="grid w-full grid-cols-5 glass-effect mb-8">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-5 glass-effect mb-6">
             <TabsTrigger value="home" className="data-[state=active]:bg-primary/20">
-              <Icon name="Home" className="mr-2 h-4 w-4" />
-              Главная
+              <Icon name="Home" className="h-4 w-4" />
             </TabsTrigger>
             <TabsTrigger value="staking" className="data-[state=active]:bg-primary/20">
-              <Icon name="Coins" className="mr-2 h-4 w-4" />
-              Стейкинг
+              <Icon name="Coins" className="h-4 w-4" />
             </TabsTrigger>
             <TabsTrigger value="wallet" className="data-[state=active]:bg-primary/20">
-              <Icon name="Wallet" className="mr-2 h-4 w-4" />
-              Кошелек
+              <Icon name="Wallet" className="h-4 w-4" />
             </TabsTrigger>
             <TabsTrigger value="profile" className="data-[state=active]:bg-primary/20">
-              <Icon name="User" className="mr-2 h-4 w-4" />
-              Профиль
+              <Icon name="User" className="h-4 w-4" />
             </TabsTrigger>
             <TabsTrigger value="support" className="data-[state=active]:bg-primary/20">
-              <Icon name="MessageCircle" className="mr-2 h-4 w-4" />
-              Поддержка
+              <Icon name="MessageCircle" className="h-4 w-4" />
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="home" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Card className="p-6 glass-effect card-3d animate-pulse-glow">
-                <div className="flex items-center justify-between mb-4">
-                  <Icon name="TrendingUp" className="h-8 w-8 text-primary" />
-                  <Badge className="bg-primary/20">Live</Badge>
+          <TabsContent value="home" className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card className="p-4 glass-effect card-3d animate-pulse-glow">
+                <div className="flex items-center justify-between mb-3">
+                  <Icon name="TrendingUp" className="h-6 w-6 text-[#0098EA]" />
+                  <Badge className="bg-primary/20 text-xs">Live</Badge>
                 </div>
-                <h3 className="text-2xl font-bold mb-1">{totalValue.toLocaleString()} JBL</h3>
-                <p className="text-muted-foreground text-sm">Общая стоимость портфеля</p>
+                <h3 className="text-xl font-bold mb-1">{totalValue.toFixed(2)} TON</h3>
+                <p className="text-muted-foreground text-xs">Общая стоимость</p>
               </Card>
 
-              <Card className="p-6 glass-effect card-3d animate-pulse-glow">
-                <div className="flex items-center justify-between mb-4">
-                  <Icon name="Lock" className="h-8 w-8 text-secondary" />
-                  <Badge className="bg-secondary/20">{stakingAPY}% APY</Badge>
+              <Card className="p-4 glass-effect card-3d animate-pulse-glow">
+                <div className="flex items-center justify-between mb-3">
+                  <Icon name="Lock" className="h-6 w-6 text-secondary" />
+                  <Badge className="bg-secondary/20 text-xs">{stakingAPY}% APY</Badge>
                 </div>
-                <h3 className="text-2xl font-bold mb-1">{stakedAmount.toLocaleString()} JBL</h3>
-                <p className="text-muted-foreground text-sm">В стейкинге</p>
+                <h3 className="text-xl font-bold mb-1">{stakedAmount.toFixed(2)} TON</h3>
+                <p className="text-muted-foreground text-xs">В стейкинге</p>
               </Card>
 
-              <Card className="p-6 glass-effect card-3d animate-pulse-glow">
-                <div className="flex items-center justify-between mb-4">
-                  <Icon name="Zap" className="h-8 w-8 text-yellow-500" />
-                  <Badge className="bg-yellow-500/20">30 дней</Badge>
+              <Card className="p-4 glass-effect card-3d animate-pulse-glow">
+                <div className="flex items-center justify-between mb-3">
+                  <Icon name="Zap" className="h-6 w-6 text-yellow-500" />
+                  <Badge className="bg-yellow-500/20 text-xs">30 дней</Badge>
                 </div>
-                <h3 className="text-2xl font-bold mb-1">+{estimatedReward} JBL</h3>
-                <p className="text-muted-foreground text-sm">Ожидаемая прибыль</p>
+                <h3 className="text-xl font-bold mb-1">+{estimatedReward} TON</h3>
+                <p className="text-muted-foreground text-xs">Прибыль/месяц</p>
               </Card>
             </div>
 
-            <Card className="p-8 glass-effect gradient-border">
-              <div className="flex items-center justify-between mb-6">
-                <div>
-                  <h2 className="text-3xl font-bold mb-2 text-glow">Стейкинг JBL</h2>
-                  <p className="text-muted-foreground">Зарабатывайте пассивный доход на блокчейне</p>
-                </div>
-                <Icon name="Rocket" className="h-16 w-16 text-primary animate-float" />
-              </div>
-              
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <div className="text-center p-4 bg-muted/20 rounded-lg">
-                  <Icon name="Percent" className="h-6 w-6 mx-auto mb-2 text-primary" />
-                  <p className="text-2xl font-bold">{stakingAPY}%</p>
-                  <p className="text-xs text-muted-foreground">Годовая доходность</p>
-                </div>
-                <div className="text-center p-4 bg-muted/20 rounded-lg">
-                  <Icon name="Calendar" className="h-6 w-6 mx-auto mb-2 text-secondary" />
-                  <p className="text-2xl font-bold">30</p>
-                  <p className="text-xs text-muted-foreground">Дней блокировки</p>
-                </div>
-                <div className="text-center p-4 bg-muted/20 rounded-lg">
-                  <Icon name="DollarSign" className="h-6 w-6 mx-auto mb-2 text-green-500" />
-                  <p className="text-2xl font-bold">{commission}%</p>
-                  <p className="text-xs text-muted-foreground">Комиссия</p>
-                </div>
-                <div className="text-center p-4 bg-muted/20 rounded-lg">
-                  <Icon name="Users" className="h-6 w-6 mx-auto mb-2 text-yellow-500" />
-                  <p className="text-2xl font-bold">1.2K</p>
-                  <p className="text-xs text-muted-foreground">Активных стейкеров</p>
-                </div>
-              </div>
+            {!isWalletConnected && (
+              <Card className="p-6 glass-effect gradient-border text-center">
+                <Icon name="Wallet" className="h-16 w-16 mx-auto mb-4 text-primary animate-float" />
+                <h2 className="text-2xl font-bold mb-2">Подключите TON кошелек</h2>
+                <p className="text-muted-foreground mb-4">Начните зарабатывать на стейкинге TON</p>
+                <Button onClick={connectWallet} size="lg" className="bg-gradient-to-r from-[#0098EA] to-primary">
+                  Подключить
+                </Button>
+              </Card>
+            )}
 
-              <Button onClick={() => setActiveTab('staking')} className="w-full bg-gradient-to-r from-primary to-secondary hover:opacity-90" size="lg">
-                <Icon name="Rocket" className="mr-2 h-5 w-5" />
-                Начать стейкинг
-              </Button>
-            </Card>
+            {isWalletConnected && (
+              <Card className="p-6 glass-effect gradient-border">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h2 className="text-2xl font-bold mb-2 text-glow">Стейкинг TON</h2>
+                    <p className="text-muted-foreground text-sm">Зарабатывайте пассивный доход</p>
+                  </div>
+                  <Icon name="Gem" className="h-12 w-12 text-primary animate-float" />
+                </div>
+                
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                  <div className="text-center p-3 bg-muted/20 rounded-lg">
+                    <Icon name="Percent" className="h-5 w-5 mx-auto mb-1 text-primary" />
+                    <p className="text-lg font-bold">{stakingAPY}%</p>
+                    <p className="text-xs text-muted-foreground">Годовых</p>
+                  </div>
+                  <div className="text-center p-3 bg-muted/20 rounded-lg">
+                    <Icon name="Calendar" className="h-5 w-5 mx-auto mb-1 text-secondary" />
+                    <p className="text-lg font-bold">30</p>
+                    <p className="text-xs text-muted-foreground">Дней</p>
+                  </div>
+                  <div className="text-center p-3 bg-muted/20 rounded-lg">
+                    <Icon name="DollarSign" className="h-5 w-5 mx-auto mb-1 text-green-500" />
+                    <p className="text-lg font-bold">{commission}%</p>
+                    <p className="text-xs text-muted-foreground">Комиссия</p>
+                  </div>
+                  <div className="text-center p-3 bg-muted/20 rounded-lg">
+                    <Icon name="Users" className="h-5 w-5 mx-auto mb-1 text-yellow-500" />
+                    <p className="text-lg font-bold">1.2K</p>
+                    <p className="text-xs text-muted-foreground">Стейкеров</p>
+                  </div>
+                </div>
+
+                <Button onClick={() => setActiveTab('staking')} className="w-full bg-gradient-to-r from-primary to-secondary hover:opacity-90">
+                  <Icon name="Rocket" className="mr-2 h-5 w-5" />
+                  Начать стейкинг
+                </Button>
+              </Card>
+            )}
           </TabsContent>
 
-          <TabsContent value="staking" className="space-y-6">
-            <Card className="p-8 glass-effect gradient-border">
-              <h2 className="text-3xl font-bold mb-6 text-glow">Управление стейкингом</h2>
-              
-              <div className="space-y-6">
-                <div>
-                  <div className="flex justify-between mb-2">
-                    <span className="text-sm text-muted-foreground">Доступно для стейкинга</span>
-                    <span className="font-bold">{balance.toLocaleString()} JBL</span>
-                  </div>
-                  <Progress value={(balance / totalValue) * 100} className="h-2" />
-                </div>
-
-                <div>
-                  <div className="flex justify-between mb-2">
-                    <span className="text-sm text-muted-foreground">В стейкинге</span>
-                    <span className="font-bold">{stakedAmount.toLocaleString()} JBL</span>
-                  </div>
-                  <Progress value={(stakedAmount / totalValue) * 100} className="h-2 bg-secondary/20" />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
-                  <Card className="p-6 glass-effect">
-                    <h3 className="text-xl font-bold mb-4 flex items-center">
-                      <Icon name="ArrowUp" className="mr-2 h-5 w-5 text-primary" />
-                      Застейкать
-                    </h3>
-                    <Input
-                      type="number"
-                      placeholder="Сумма JBL"
-                      value={stakeInput}
-                      onChange={(e) => setStakeInput(e.target.value)}
-                      className="mb-4 border-primary/30"
-                    />
-                    <Button onClick={handleStake} className="w-full bg-primary hover:bg-primary/90">
-                      Застейкать JBL
-                    </Button>
-                  </Card>
-
-                  <Card className="p-6 glass-effect">
-                    <h3 className="text-xl font-bold mb-4 flex items-center">
-                      <Icon name="ArrowDown" className="mr-2 h-5 w-5 text-secondary" />
-                      Вывести
-                    </h3>
-                    <Input
-                      type="number"
-                      placeholder="Сумма JBL"
-                      value={stakeInput}
-                      onChange={(e) => setStakeInput(e.target.value)}
-                      className="mb-4 border-secondary/30"
-                    />
-                    <Button onClick={handleUnstake} className="w-full bg-secondary hover:bg-secondary/90">
-                      Вывести JBL
-                    </Button>
-                  </Card>
-                </div>
-
-                <Card className="p-6 bg-gradient-to-r from-primary/10 to-secondary/10 border-primary/30">
-                  <div className="flex items-start space-x-4">
-                    <Icon name="Info" className="h-6 w-6 text-primary mt-1" />
+          <TabsContent value="staking" className="space-y-4">
+            {!isWalletConnected ? (
+              <Card className="p-6 glass-effect gradient-border text-center">
+                <Icon name="Wallet" className="h-16 w-16 mx-auto mb-4 text-primary" />
+                <h2 className="text-2xl font-bold mb-2">Подключите кошелек</h2>
+                <p className="text-muted-foreground mb-4">Для стейкинга необходим TON кошелек</p>
+                <Button onClick={connectWallet} size="lg" className="bg-gradient-to-r from-[#0098EA] to-primary">
+                  Подключить
+                </Button>
+              </Card>
+            ) : (
+              <>
+                <Card className="p-6 glass-effect gradient-border">
+                  <h2 className="text-2xl font-bold mb-4 text-glow">Управление стейкингом</h2>
+                  
+                  <div className="space-y-4">
                     <div>
-                      <h4 className="font-bold mb-2">Условия стейкинга</h4>
-                      <ul className="text-sm text-muted-foreground space-y-1">
-                        <li>• Минимальный период блокировки: 30 дней</li>
-                        <li>• Комиссия платформы: {commission}% от награды</li>
-                        <li>• Награды начисляются ежедневно</li>
-                        <li>• Досрочный вывод с потерей 10% награды</li>
-                      </ul>
+                      <div className="flex justify-between mb-2">
+                        <span className="text-sm text-muted-foreground">Доступно</span>
+                        <span className="font-bold">{balance.toFixed(2)} TON</span>
+                      </div>
+                      <Progress value={totalValue > 0 ? (balance / totalValue) * 100 : 0} className="h-2" />
                     </div>
-                  </div>
-                </Card>
-              </div>
-            </Card>
-          </TabsContent>
 
-          <TabsContent value="wallet" className="space-y-6">
-            <Card className="p-8 glass-effect gradient-border">
-              <h2 className="text-3xl font-bold mb-6 text-glow">Кошелек</h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                <Card className="p-6 glass-effect">
-                  <div className="flex items-center justify-between mb-4">
-                    <Icon name="Wallet" className="h-10 w-10 text-primary" />
-                    <Badge className="bg-green-500/20 text-green-500">Активен</Badge>
-                  </div>
-                  <h3 className="text-sm text-muted-foreground mb-2">Баланс кошелька</h3>
-                  <p className="text-4xl font-bold mb-4">{balance.toLocaleString()} JBL</p>
-                  <Button className="w-full bg-primary/20 hover:bg-primary/30">
-                    <Icon name="Plus" className="mr-2 h-4 w-4" />
-                    Пополнить
-                  </Button>
-                </Card>
+                    <div>
+                      <div className="flex justify-between mb-2">
+                        <span className="text-sm text-muted-foreground">В стейкинге</span>
+                        <span className="font-bold">{stakedAmount.toFixed(2)} TON</span>
+                      </div>
+                      <Progress value={totalValue > 0 ? (stakedAmount / totalValue) * 100 : 0} className="h-2" />
+                    </div>
 
-                <Card className="p-6 glass-effect">
-                  <div className="flex items-center justify-between mb-4">
-                    <Icon name="Lock" className="h-10 w-10 text-secondary" />
-                    <Badge className="bg-secondary/20">Заблокировано</Badge>
-                  </div>
-                  <h3 className="text-sm text-muted-foreground mb-2">В стейкинге</h3>
-                  <p className="text-4xl font-bold mb-4">{stakedAmount.toLocaleString()} JBL</p>
-                  <Button className="w-full bg-secondary/20 hover:bg-secondary/30">
-                    <Icon name="Unlock" className="mr-2 h-4 w-4" />
-                    Управлять
-                  </Button>
-                </Card>
-              </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-6">
+                      <Card className="p-4 glass-effect">
+                        <h3 className="text-sm font-bold mb-3 flex items-center">
+                          <Icon name="Plus" className="mr-2 h-4 w-4 text-green-500" />
+                          Пополнить
+                        </h3>
+                        <Input
+                          type="number"
+                          placeholder="Сумма TON"
+                          value={stakeInput}
+                          onChange={(e) => setStakeInput(e.target.value)}
+                          className="mb-3 text-sm"
+                        />
+                        <Button onClick={handleDeposit} className="w-full bg-green-500/20 hover:bg-green-500/30 text-sm">
+                          Пополнить
+                        </Button>
+                      </Card>
 
-              <div>
-                <h3 className="text-xl font-bold mb-4 flex items-center">
-                  <Icon name="History" className="mr-2 h-5 w-5" />
-                  История транзакций
-                </h3>
-                <div className="space-y-3">
-                  {[
-                    { type: 'stake', amount: 1000, date: '2026-01-13', status: 'completed' },
-                    { type: 'reward', amount: 41.67, date: '2026-01-12', status: 'completed' },
-                    { type: 'unstake', amount: 500, date: '2026-01-10', status: 'completed' },
-                    { type: 'deposit', amount: 5000, date: '2026-01-08', status: 'completed' },
-                  ].map((tx, i) => (
-                    <Card key={i} className="p-4 glass-effect hover:bg-muted/10 transition-colors">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-4">
-                          <Icon 
-                            name={tx.type === 'stake' ? 'ArrowUp' : tx.type === 'unstake' ? 'ArrowDown' : tx.type === 'reward' ? 'Gift' : 'Plus'} 
-                            className={`h-8 w-8 ${tx.type === 'stake' ? 'text-primary' : tx.type === 'reward' ? 'text-yellow-500' : 'text-secondary'}`}
-                          />
-                          <div>
-                            <p className="font-semibold">
-                              {tx.type === 'stake' ? 'Стейкинг' : tx.type === 'unstake' ? 'Вывод' : tx.type === 'reward' ? 'Награда' : 'Пополнение'}
-                            </p>
-                            <p className="text-sm text-muted-foreground">{tx.date}</p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className={`font-bold ${tx.type === 'unstake' ? 'text-red-500' : 'text-green-500'}`}>
-                            {tx.type === 'unstake' ? '-' : '+'}{tx.amount} JBL
-                          </p>
-                          <Badge variant="outline" className="text-xs">{tx.status}</Badge>
+                      <Card className="p-4 glass-effect">
+                        <h3 className="text-sm font-bold mb-3 flex items-center">
+                          <Icon name="ArrowUp" className="mr-2 h-4 w-4 text-primary" />
+                          Застейкать
+                        </h3>
+                        <Input
+                          type="number"
+                          placeholder="Сумма TON"
+                          value={stakeInput}
+                          onChange={(e) => setStakeInput(e.target.value)}
+                          className="mb-3 text-sm"
+                        />
+                        <Button onClick={handleStake} className="w-full bg-primary/20 hover:bg-primary/30 text-sm">
+                          Застейкать
+                        </Button>
+                      </Card>
+
+                      <Card className="p-4 glass-effect">
+                        <h3 className="text-sm font-bold mb-3 flex items-center">
+                          <Icon name="ArrowDown" className="mr-2 h-4 w-4 text-secondary" />
+                          Вывести
+                        </h3>
+                        <Input
+                          type="number"
+                          placeholder="Сумма TON"
+                          value={stakeInput}
+                          onChange={(e) => setStakeInput(e.target.value)}
+                          className="mb-3 text-sm"
+                        />
+                        <Button onClick={handleUnstake} className="w-full bg-secondary/20 hover:bg-secondary/30 text-sm">
+                          Вывести
+                        </Button>
+                      </Card>
+                    </div>
+
+                    <Card className="p-4 bg-gradient-to-r from-primary/10 to-secondary/10 border-primary/30">
+                      <div className="flex items-start space-x-3">
+                        <Icon name="Info" className="h-5 w-5 text-primary mt-0.5" />
+                        <div>
+                          <h4 className="font-bold mb-2 text-sm">Условия стейкинга</h4>
+                          <ul className="text-xs text-muted-foreground space-y-1">
+                            <li>• Период блокировки: 30 дней</li>
+                            <li>• Комиссия: {commission}% от награды</li>
+                            <li>• Награды ежедневно</li>
+                            <li>• Досрочный вывод: -10% награды</li>
+                          </ul>
                         </div>
                       </div>
                     </Card>
-                  ))}
+                  </div>
+                </Card>
+              </>
+            )}
+          </TabsContent>
+
+          <TabsContent value="wallet" className="space-y-4">
+            {!isWalletConnected ? (
+              <Card className="p-6 glass-effect gradient-border text-center">
+                <Icon name="Wallet" className="h-16 w-16 mx-auto mb-4 text-primary" />
+                <h2 className="text-2xl font-bold mb-2">Подключите кошелек</h2>
+                <Button onClick={connectWallet} size="lg" className="bg-gradient-to-r from-[#0098EA] to-primary">
+                  Подключить
+                </Button>
+              </Card>
+            ) : (
+              <Card className="p-6 glass-effect gradient-border">
+                <h2 className="text-2xl font-bold mb-4 text-glow">Кошелек</h2>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                  <Card className="p-5 glass-effect">
+                    <div className="flex items-center justify-between mb-3">
+                      <Icon name="Wallet" className="h-8 w-8 text-primary" />
+                      <Badge className="bg-green-500/20 text-green-500 text-xs">Активен</Badge>
+                    </div>
+                    <h3 className="text-xs text-muted-foreground mb-2">Баланс</h3>
+                    <p className="text-3xl font-bold mb-3">{balance.toFixed(2)} TON</p>
+                    <Button className="w-full bg-primary/20 hover:bg-primary/30 text-sm">
+                      <Icon name="Plus" className="mr-2 h-4 w-4" />
+                      Пополнить
+                    </Button>
+                  </Card>
+
+                  <Card className="p-5 glass-effect">
+                    <div className="flex items-center justify-between mb-3">
+                      <Icon name="Lock" className="h-8 w-8 text-secondary" />
+                      <Badge className="bg-secondary/20 text-xs">Стейкинг</Badge>
+                    </div>
+                    <h3 className="text-xs text-muted-foreground mb-2">В стейкинге</h3>
+                    <p className="text-3xl font-bold mb-3">{stakedAmount.toFixed(2)} TON</p>
+                    <Button onClick={() => setActiveTab('staking')} className="w-full bg-secondary/20 hover:bg-secondary/30 text-sm">
+                      <Icon name="ArrowRight" className="mr-2 h-4 w-4" />
+                      Управлять
+                    </Button>
+                  </Card>
                 </div>
-              </div>
-            </Card>
-          </TabsContent>
 
-          <TabsContent value="profile" className="space-y-6">
-            <Card className="p-8 glass-effect gradient-border">
-              <h2 className="text-3xl font-bold mb-6 text-glow">Профиль</h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card className="p-6 glass-effect">
-                  <div className="flex items-center space-x-4 mb-6">
-                    <div className="h-16 w-16 rounded-full bg-gradient-to-r from-primary to-secondary flex items-center justify-center">
-                      <Icon name="User" className="h-8 w-8" />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-bold">Стейкер #8742</h3>
-                      <p className="text-sm text-muted-foreground">Участник с 08.01.2026</p>
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    <div>
-                      <p className="text-sm text-muted-foreground mb-1">Общая прибыль</p>
-                      <p className="text-2xl font-bold text-green-500">+{estimatedReward} JBL</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground mb-1">Уровень</p>
-                      <div className="flex items-center space-x-2">
-                        <Badge className="bg-primary/20">Silver Staker</Badge>
-                        <Icon name="Award" className="h-5 w-5 text-primary" />
-                      </div>
-                    </div>
-                  </div>
-                </Card>
-
-                <Card className="p-6 glass-effect bg-gradient-to-br from-primary/10 to-secondary/10">
-                  <h3 className="text-xl font-bold mb-4 flex items-center">
-                    <Icon name="Users" className="mr-2 h-5 w-5 text-primary" />
-                    Реферальная программа
+                <div>
+                  <h3 className="text-lg font-bold mb-3 flex items-center">
+                    <Icon name="History" className="mr-2 h-5 w-5" />
+                    История транзакций
                   </h3>
-                  
-                  <div className="space-y-4">
-                    <div>
-                      <p className="text-sm text-muted-foreground mb-2">Ваш реферальный код</p>
-                      <div className="flex space-x-2">
-                        <Input value={referralCode} readOnly className="font-mono bg-muted/20" />
-                        <Button onClick={copyReferralCode} size="icon" className="bg-primary/20 hover:bg-primary/30">
-                          <Icon name="Copy" className="h-4 w-4" />
-                        </Button>
-                      </div>
+                  {balance === 0 && stakedAmount === 0 ? (
+                    <Card className="p-6 glass-effect text-center">
+                      <Icon name="Inbox" className="h-12 w-12 mx-auto mb-3 text-muted-foreground" />
+                      <p className="text-muted-foreground text-sm">Пока нет транзакций</p>
+                    </Card>
+                  ) : (
+                    <div className="space-y-2">
+                      <Card className="p-3 glass-effect">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-3">
+                            <Icon name="Plus" className="h-6 w-6 text-green-500" />
+                            <div>
+                              <p className="font-semibold text-sm">Пополнение</p>
+                              <p className="text-xs text-muted-foreground">{new Date().toLocaleDateString()}</p>
+                            </div>
+                          </div>
+                          <p className="font-bold text-green-500">+{balance.toFixed(2)} TON</p>
+                        </div>
+                      </Card>
                     </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="p-4 bg-muted/20 rounded-lg text-center">
-                        <p className="text-3xl font-bold text-primary">{referrals}</p>
-                        <p className="text-xs text-muted-foreground">Рефералов</p>
-                      </div>
-                      <div className="p-4 bg-muted/20 rounded-lg text-center">
-                        <p className="text-3xl font-bold text-green-500">+{(referrals * 25).toFixed(0)}</p>
-                        <p className="text-xs text-muted-foreground">Бонус JBL</p>
-                      </div>
-                    </div>
-
-                    <div className="p-4 bg-primary/10 rounded-lg border border-primary/30">
-                      <p className="text-sm">
-                        <Icon name="Gift" className="inline h-4 w-4 mr-1" />
-                        Получайте <span className="font-bold text-primary">5%</span> от стейкинга рефералов!
-                      </p>
-                    </div>
-                  </div>
-                </Card>
-              </div>
-            </Card>
+                  )}
+                </div>
+              </Card>
+            )}
           </TabsContent>
 
-          <TabsContent value="support" className="space-y-6">
-            <Card className="p-8 glass-effect gradient-border">
-              <h2 className="text-3xl font-bold mb-6 text-glow">Поддержка</h2>
+          <TabsContent value="profile" className="space-y-4">
+            {!isWalletConnected ? (
+              <Card className="p-6 glass-effect gradient-border text-center">
+                <Icon name="User" className="h-16 w-16 mx-auto mb-4 text-primary" />
+                <h2 className="text-2xl font-bold mb-2">Подключите кошелек</h2>
+                <Button onClick={connectWallet} size="lg" className="bg-gradient-to-r from-[#0098EA] to-primary">
+                  Подключить
+                </Button>
+              </Card>
+            ) : (
+              <Card className="p-6 glass-effect gradient-border">
+                <h2 className="text-2xl font-bold mb-4 text-glow">Профиль</h2>
+                
+                <div className="grid grid-cols-1 gap-4">
+                  <Card className="p-5 glass-effect">
+                    <div className="flex items-center space-x-4 mb-4">
+                      <div className="h-14 w-14 rounded-full bg-gradient-to-r from-primary to-secondary flex items-center justify-center">
+                        <Icon name="User" className="h-7 w-7" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold">Стейкер #{Math.floor(Math.random() * 10000)}</h3>
+                        <p className="text-xs text-muted-foreground">{new Date().toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1">Прибыль</p>
+                        <p className="text-xl font-bold text-green-500">+{estimatedReward} TON</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1">Уровень</p>
+                        <Badge className="bg-primary/20">
+                          <Icon name="Award" className="mr-1 h-3 w-3" />
+                          Starter
+                        </Badge>
+                      </div>
+                    </div>
+                  </Card>
+
+                  <Card className="p-5 glass-effect bg-gradient-to-br from-primary/10 to-secondary/10">
+                    <h3 className="text-lg font-bold mb-3 flex items-center">
+                      <Icon name="Users" className="mr-2 h-5 w-5 text-primary" />
+                      Реферальная программа
+                    </h3>
+                    
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-2">Ваша реферальная ссылка</p>
+                        <div className="flex space-x-2">
+                          <Input value={getReferralLink()} readOnly className="font-mono text-xs bg-muted/20" />
+                          <Button onClick={copyReferralCode} size="icon" className="bg-primary/20 hover:bg-primary/30 shrink-0">
+                            <Icon name="Copy" className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="p-3 bg-muted/20 rounded-lg text-center">
+                          <p className="text-2xl font-bold text-primary">{referrals}</p>
+                          <p className="text-xs text-muted-foreground">Рефералов</p>
+                        </div>
+                        <div className="p-3 bg-muted/20 rounded-lg text-center">
+                          <p className="text-2xl font-bold text-green-500">+{(referrals * 25).toFixed(0)}</p>
+                          <p className="text-xs text-muted-foreground">Бонус TON</p>
+                        </div>
+                      </div>
+
+                      <Button onClick={shareReferral} className="w-full bg-[#0098EA]/20 hover:bg-[#0098EA]/30">
+                        <Icon name="Share2" className="mr-2 h-4 w-4" />
+                        Поделиться в Telegram
+                      </Button>
+
+                      <div className="p-3 bg-primary/10 rounded-lg border border-primary/30">
+                        <p className="text-xs flex items-center">
+                          <Icon name="Gift" className="inline h-4 w-4 mr-1" />
+                          Получайте <span className="font-bold text-primary mx-1">5%</span> от стейкинга рефералов!
+                        </p>
+                      </div>
+                    </div>
+                  </Card>
+                </div>
+              </Card>
+            )}
+          </TabsContent>
+
+          <TabsContent value="support" className="space-y-4">
+            <Card className="p-6 glass-effect gradient-border">
+              <h2 className="text-2xl font-bold mb-4 text-glow">Поддержка</h2>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <Card className="p-6 glass-effect hover:bg-muted/10 transition-colors cursor-pointer">
-                  <Icon name="MessageCircle" className="h-10 w-10 text-primary mb-4" />
-                  <h3 className="font-bold mb-2">Telegram</h3>
-                  <p className="text-sm text-muted-foreground">Быстрая поддержка в чате</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+                <Card className="p-4 glass-effect hover:bg-muted/10 transition-colors cursor-pointer">
+                  <Icon name="MessageCircle" className="h-8 w-8 text-[#0098EA] mb-3" />
+                  <h3 className="font-bold mb-1 text-sm">Telegram</h3>
+                  <p className="text-xs text-muted-foreground">Чат поддержки</p>
                 </Card>
 
-                <Card className="p-6 glass-effect hover:bg-muted/10 transition-colors cursor-pointer">
-                  <Icon name="Mail" className="h-10 w-10 text-secondary mb-4" />
-                  <h3 className="font-bold mb-2">Email</h3>
-                  <p className="text-sm text-muted-foreground">support@jblstaking.io</p>
+                <Card className="p-4 glass-effect hover:bg-muted/10 transition-colors cursor-pointer">
+                  <Icon name="Mail" className="h-8 w-8 text-secondary mb-3" />
+                  <h3 className="font-bold mb-1 text-sm">Email</h3>
+                  <p className="text-xs text-muted-foreground">support@jbl.io</p>
                 </Card>
 
-                <Card className="p-6 glass-effect hover:bg-muted/10 transition-colors cursor-pointer">
-                  <Icon name="FileText" className="h-10 w-10 text-yellow-500 mb-4" />
-                  <h3 className="font-bold mb-2">FAQ</h3>
-                  <p className="text-sm text-muted-foreground">База знаний</p>
+                <Card className="p-4 glass-effect hover:bg-muted/10 transition-colors cursor-pointer">
+                  <Icon name="FileText" className="h-8 w-8 text-yellow-500 mb-3" />
+                  <h3 className="font-bold mb-1 text-sm">FAQ</h3>
+                  <p className="text-xs text-muted-foreground">База знаний</p>
                 </Card>
               </div>
 
-              <Card className="p-6 glass-effect">
-                <h3 className="text-xl font-bold mb-4">Частые вопросы</h3>
-                <div className="space-y-4">
+              <Card className="p-5 glass-effect">
+                <h3 className="text-lg font-bold mb-3">Частые вопросы</h3>
+                <div className="space-y-3">
                   {[
-                    { q: 'Как начать стейкинг?', a: 'Подключите кошелек, выберите сумму и нажмите "Застейкать JBL"' },
-                    { q: 'Когда я получу награду?', a: 'Награды начисляются ежедневно и доступны после окончания периода блокировки' },
+                    { q: 'Как начать стейкинг?', a: 'Подключите TON кошелек и выберите сумму для стейкинга' },
+                    { q: 'Когда я получу награду?', a: 'Награды начисляются ежедневно в течение 30 дней' },
                     { q: 'Можно ли вывести досрочно?', a: 'Да, но с потерей 10% накопленной награды' },
-                    { q: 'Как работает реферальная программа?', a: 'Получайте 5% от стейкинга приглашенных пользователей' },
+                    { q: 'Как работают рефералы?', a: 'Получайте 5% от стейкинга приглашенных пользователей' },
                   ].map((faq, i) => (
-                    <Card key={i} className="p-4 glass-effect">
-                      <h4 className="font-semibold mb-2 flex items-center">
+                    <Card key={i} className="p-3 glass-effect">
+                      <h4 className="font-semibold text-sm mb-1 flex items-center">
                         <Icon name="HelpCircle" className="h-4 w-4 mr-2 text-primary" />
                         {faq.q}
                       </h4>
-                      <p className="text-sm text-muted-foreground pl-6">{faq.a}</p>
+                      <p className="text-xs text-muted-foreground pl-6">{faq.a}</p>
                     </Card>
                   ))}
                 </div>
@@ -431,7 +588,7 @@ const Index = () => {
         </Tabs>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-primary via-secondary to-primary animate-pulse" />
+      <div className="fixed bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-[#0098EA] via-primary to-secondary animate-pulse" />
     </div>
   );
 };
