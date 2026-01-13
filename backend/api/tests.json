@@ -1,0 +1,23 @@
+{
+  "tests": [
+    {
+      "name": "Get or create user",
+      "method": "POST",
+      "path": "/?action=get_user",
+      "body": {
+        "wallet_address": "UQTest123456789",
+        "telegram_id": 123456789
+      },
+      "expectedStatus": 200
+    },
+    {
+      "name": "Get user stats",
+      "method": "POST",
+      "path": "/?action=get_stats",
+      "body": {
+        "wallet_address": "UQTest123456789"
+      },
+      "expectedStatus": 200
+    }
+  ]
+}
